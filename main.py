@@ -227,8 +227,20 @@ def getSowDateRanges(seed, convertedGrowDates):
 
         # Add last range of dates
         if i == len(convertedGrowDates) - 2:
-            sowDateRanges.append(convertedGrowDates[dateRangeStartIdx])
-            sowDateRanges.append(convertedGrowDates[i])
+            # If growing temps are not ideal in January, the final date in convertedGrowDates
+            # will be considered the final harvest date, which allows us to calculate
+            # an ideal lastSowDate
+            if convertedGrowDates[0] != date(2020, 1, 1):
+                lastSowDate = convertedGrowDates[i] - timedelta(days=totalGrowTime)
+                dateRangeEndIdx = convertedGrowDates.index(lastSowDate)
+
+                sowDateRanges.append(convertedGrowDates[dateRangeStartIdx])
+                sowDateRanges.append(convertedGrowDates[dateRangeEndIdx])
+            # If growing temps are ideal in January, then the lastSowDate can be the final date
+            # in convertedGrowDates
+            else:
+                sowDateRanges.append(convertedGrowDates[dateRangeStartIdx])
+                sowDateRanges.append(convertedGrowDates[i + 1])
 
     return sowDateRanges
 
@@ -294,12 +306,14 @@ def main():
         print("\n" + "* * * * * * * * * *" + "\n")
     else:
         print("I am sorry. I could not find any good sow dates.")
-        print("Perhaps you should consider starting these seeds indoors.")
+        print("Perhaps you should start these seeds indoors.")
         exit()
 
     print("I can also give you an estimated harvest date. \n")
     print("What day do you plan to sow your seeds?")
-    plannedSowDate = input("Please enter in the format MM-DD-YYYY: ")
+    plannedSowDate = input(
+        "Please enter a date within the ranges above in the format MM-DD-YYYY: "
+    )
     print("\n")
     estHarvestDate = getHarvestDate(seed, plannedSowDate)
     print(
