@@ -2,6 +2,7 @@ import requests
 import pprint
 from datetime import date, timedelta
 import apiKeys
+import pickle
 
 
 class Seed:
@@ -75,14 +76,35 @@ def createNewSeed(newSeedInfo):
 class User:
     def __init__(self, name, zipCode):
         self.name = name
-        self.zipCode = int(zipCode)
-        self.weatherStation = getWeatherStation(zipCode, apiKeys.visualCrossingKey)
+        self.zipCode = zipCode
+        self.seedList = []
+        self.weatherStation = getWeatherStation(int(zipCode), apiKeys.visualCrossingKey)
+
+        response_json = getDailyWeatherSummaries(
+            self.weatherStation, apiKeys.weatherKey
+        )
+        results = getDailyWeatherSummariesResults(response_json)
+        self.avgTempMap = getAvgTempMap(results)
+        self.avgLowMap = getAvgLowMap(results)
+        self.avgHighMap = getAvgHighMap(results)
+
+    def printSeedList(self):
+        if len(self.seedList) < 1:
+            print("Seed list is empty.")
+        else:
+            print("Seed List:")
+            listNum = 1
+            for seed in self.seedList:
+                print(str(listNum) + ". " + seed.name)
+                listNum = listNum + 1
 
     def printAttributes(self):
         print("\n")
         print("Name: " + self.name)
         print("Zip code: " + self.zipCode)
         print("Weather Station: " + self.weatherStation)
+        print("Seed List:")
+        self.printSeedList()
 
 
 def getNewUserInfo():
@@ -95,7 +117,7 @@ def getNewUserInfo():
 
 
 def createNewUser(newUserInfo):
-    newUser = User(newUserInfo[0], int(newUserInfo[1]))
+    newUser = User(newUserInfo[0], newUserInfo[1])
 
     return newUser
 
@@ -262,67 +284,93 @@ def getHarvestDate(seed, strSowDate):
     return sowDate + timedelta(days=seed.getTotalGrowTime())
 
 
-# Main Program
+def displayMenu():
+    print("\n" + "* * * * * * * * * *" + "\n")
+    print("1. Load saved seed")
+    print("2. Enter new seed")
+    print("3. Quit")
+    print("\n" + "* * * * * * * * * *" + "\n")
+
+
 def main():
-    print("\n" + "* * * * * * * * * *" + "\n")
-    print("Hello and welcome to the Garden Calendar!")
-    print(
-        "You can use this program to help you determine the best date to sow your seeds outdoors."
-    )
-    print("\n" + "* * * * * * * * * *" + "\n")
-
-    print("In order to do this, I will need some information from you...")
-    newUserInfo = getNewUserInfo()
-    user = createNewUser(newUserInfo)
-    print("\n" + "* * * * * * * * * *" + "\n")
-
-    print(
-        "Thank you, {userName}. Now I will need information about the seed you want to sow. \n".format(
-            userName=user.name
-        )
-    )
-    newSeedInfo = getNewSeedInfo()
-    seed = createNewSeed(newSeedInfo)
-    print("\n" + "* * * * * * * * * *" + "\n")
-
-    response_json = getDailyWeatherSummaries(user.weatherStation, apiKeys.weatherKey)
-    results = getDailyWeatherSummariesResults(response_json)
-    avgTempMap = getAvgTempMap(results)
-    avgLowMap = getAvgLowMap(results)
-    avgHighMap = getAvgHighMap(results)
-
-    idealGrowDateStrs = getIdealGrowDateStrs(seed, avgLowMap, avgHighMap, avgTempMap)
-    convertedGrowDates = getConvertedGrowDates(idealGrowDateStrs)
-    sowDateRanges = getSowDateRanges(seed, convertedGrowDates)
-
-    if len(sowDateRanges) > 0:
+    try:
+        user = pickle.load(open("pickledUser.pkl", "rb"))
+        print(f"Hello {user.name} and welcome back to the Garden Calendar!")
         print(
-            "Here are the ranges of dates when it would be best to sow {seedName}:".format(
-                seedName=seed.name
-            )
+            "As you probably remember, this program helps you determine the best date to sow your seeds outdoors."
         )
-        print("\n")
-        printSowDateRanges(sowDateRanges)
-        print("\n" + "* * * * * * * * * *" + "\n")
-    else:
-        print("I am sorry. I could not find any good sow dates.")
-        print("Perhaps you should start these seeds indoors.")
-        exit()
+    except:
+        print("Hello and welcome to the Garden Calendar!")
+        print(
+            "You can use this program to help you determine the best date to sow your seeds outdoors."
+        )
+        print(
+            "It looks like you're new here. I will need to collect some info before we get started."
+        )
+        userInfo = getNewUserInfo()
+        user = createNewUser(userInfo)
 
-    print("I can also give you an estimated harvest date. \n")
-    print("What day do you plan to sow your seeds?")
-    plannedSowDate = input(
-        "Please enter a date within the ranges above in the format MM-DD-YYYY: "
-    )
-    print("\n")
-    estHarvestDate = getHarvestDate(seed, plannedSowDate)
-    print(
-        "If you sow your seeds on "
-        + plannedSowDate
-        + "... \nthe estimated harvest date is "
-        + estHarvestDate.strftime("%m-%d-%Y")
-    )
-    print("\n" + "* * * * * * * * * *" + "\n")
+    while True:
+        displayMenu()
+
+        userChoice = input("Menu option: ")
+        userChoice = userChoice.strip()
+        print("\n" + "* * * * * * * * * *" + "\n")
+
+        if userChoice == "1":
+            user.printSeedList()
+            print("\n" + "* * * * * * * * * *" + "\n")
+
+            selectedSeed = input("Enter seed: ")
+            selectedSeed = user.seedList[int(selectedSeed) - 1]
+
+            print("\n" + "* * * * * * * * * *" + "\n")
+
+            idealGrowDateStrs = getIdealGrowDateStrs(
+                selectedSeed, user.avgLowMap, user.avgHighMap, user.avgTempMap
+            )
+            convertedGrowDates = getConvertedGrowDates(idealGrowDateStrs)
+            sowDateRanges = getSowDateRanges(selectedSeed, convertedGrowDates)
+
+            if len(sowDateRanges) > 0:
+                print(f"Best sow dates for {selectedSeed.name}:\n")
+                printSowDateRanges(sowDateRanges)
+                print("\n" + "* * * * * * * * * *" + "\n")
+
+                print("What day do you plan to sow your seeds?")
+                plannedSowDate = input(
+                    "Please enter a date within the ranges above (format MM-DD-YYYY): "
+                )
+                print("\n" + "* * * * * * * * * *" + "\n")
+
+                estHarvestDate = getHarvestDate(selectedSeed, plannedSowDate)
+                print(
+                    "If you sow your seeds on "
+                    + plannedSowDate
+                    + "... \nthe estimated harvest date is "
+                    + estHarvestDate.strftime("%m-%d-%Y")
+                )
+
+            else:
+                print("I am sorry. I could not find any good sow dates.")
+                print("Perhaps you should start these seeds indoors.")
+                print("\n" + "* * * * * * * * * *" + "\n")
+
+        elif userChoice == "2":
+            newSeedInfo = getNewSeedInfo()
+            user.seedList.append(createNewSeed(newSeedInfo))
+            pickle.dump(user, open("pickledUser.pkl", "wb"))
+            print("The new seed has been added to your seed list.")
+
+        elif userChoice == "3":
+            print(
+                "Thank you for using the Garden Calendar! I hope you have an abundant harvest!"
+            )
+            print("Goodbye!")
+            break
+
+        else:
+            print("Invalid option. Please enter a number from the provided menu.")
 
 
 main()
