@@ -3,6 +3,8 @@ import pprint
 from datetime import date, timedelta
 import apiKeys
 import pickle
+import pandas as pd
+from scipy.spatial.distance import cdist
 
 
 class Seed:
@@ -78,25 +80,23 @@ class User:
         self.name = name
         self.zipCode = zipCode
         self.seedList = []
-        self.weatherStation = getWeatherStation(int(zipCode), apiKeys.visualCrossingKey)
+        self.latitudeAndLongitude = getLatitudeAndLongitude(zipCode)
+        self.weatherStation = getWeatherStation(self.latitudeAndLongitude)
 
-        response_json = getDailyWeatherSummaries(
+        self.response_json = getDailyWeatherSummaries(
             self.weatherStation, apiKeys.weatherKey
         )
-        results = getDailyWeatherSummariesResults(response_json)
+        results = getDailyWeatherSummariesResults(self.response_json)
         self.avgTempMap = getAvgTempMap(results)
         self.avgLowMap = getAvgLowMap(results)
         self.avgHighMap = getAvgHighMap(results)
 
     def printSeedList(self):
-        if len(self.seedList) < 1:
-            print("Seed list is empty.")
-        else:
-            print("Seed List:")
-            listNum = 1
-            for seed in self.seedList:
-                print(str(listNum) + ". " + seed.name)
-                listNum = listNum + 1
+        print("Seed List:")
+        listNum = 1
+        for seed in self.seedList:
+            print(str(listNum) + ". " + seed.name)
+            listNum = listNum + 1
 
     def printAttributes(self):
         print("\n")
@@ -111,7 +111,22 @@ def getNewUserInfo():
     newUserInfo = []
 
     newUserInfo.append(input("What is your name?: "))
-    newUserInfo.append(input("What is your zip code?: "))
+
+    while True:
+        zipCode = input("What is your zip code?: ")
+
+        try:
+            if len(zipCode.strip()) == 5:
+                zipCode = int(zipCode)
+            else:
+                print("Zip code must be 5 digits. Please try again.")
+                continue
+        except:
+            print("Zip code must be 5 digits. Please try again.")
+            continue
+        break
+
+    newUserInfo.append(zipCode)
 
     return newUserInfo
 
@@ -122,17 +137,20 @@ def createNewUser(newUserInfo):
     return newUser
 
 
-def getWeatherStation(userZip, apiKey):
-    requestURL = "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{zipCode}?unitGroup=us&elements=datetime%2Cname%2Clatitude%2Clongitude%2Cstations&include=days%2Cobs&key={key}&maxStations=1&contentType=json".format(
-        zipCode=userZip, key=apiKey
-    )
-    response = requests.get(requestURL)
-    res_json = response.json()
-    stations = res_json["stations"]
+def getLatitudeAndLongitude(zipCode):
+    zipCodes = pd.read_csv("zipcodes.csv", usecols=["Zipcode", "Lat", "Long"])
+    records = zipCodes.loc[(zipCodes["Zipcode"] == zipCode)]
+    return (records["Lat"].mean(), records["Long"].mean())
 
-    for station in stations:
-        if station[0] == "K":
-            return station
+
+def getWeatherStation(latAndLong):
+    stations = pd.read_csv("weatherStations.csv")
+    locations = [(x, y) for x, y in zip(stations["Latitude"], stations["Longitude"])]
+    closest = locations[cdist([latAndLong], locations).argmin()]
+    stationID = stations.loc[
+        (stations["Latitude"] == closest[0]) & (stations["Longitude"] == closest[1])
+    ]["STID"].values[0]
+    return stationID
 
 
 def getDailyWeatherSummaries(weatherStation, apiKey):
@@ -286,7 +304,7 @@ def getHarvestDate(seed, strSowDate):
 
 def displayMenu():
     print("\n" + "* * * * * * * * * *" + "\n")
-    print("1. Load saved seed")
+    print("1. Get sow dates for saved seeds")
     print("2. Enter new seed")
     print("3. Quit")
     print("\n" + "* * * * * * * * * *" + "\n")
@@ -318,43 +336,66 @@ def main():
         print("\n" + "* * * * * * * * * *" + "\n")
 
         if userChoice == "1":
-            user.printSeedList()
-            print("\n" + "* * * * * * * * * *" + "\n")
-
-            selectedSeed = input("Enter seed: ")
-            selectedSeed = user.seedList[int(selectedSeed) - 1]
-
-            print("\n" + "* * * * * * * * * *" + "\n")
-
-            idealGrowDateStrs = getIdealGrowDateStrs(
-                selectedSeed, user.avgLowMap, user.avgHighMap, user.avgTempMap
-            )
-            convertedGrowDates = getConvertedGrowDates(idealGrowDateStrs)
-            sowDateRanges = getSowDateRanges(selectedSeed, convertedGrowDates)
-
-            if len(sowDateRanges) > 0:
-                print(f"Best sow dates for {selectedSeed.name}:\n")
-                printSowDateRanges(sowDateRanges)
-                print("\n" + "* * * * * * * * * *" + "\n")
-
-                print("What day do you plan to sow your seeds?")
-                plannedSowDate = input(
-                    "Please enter a date within the ranges above (format MM-DD-YYYY): "
-                )
-                print("\n" + "* * * * * * * * * *" + "\n")
-
-                estHarvestDate = getHarvestDate(selectedSeed, plannedSowDate)
+            if len(user.seedList) < 1:
                 print(
-                    "If you sow your seeds on "
-                    + plannedSowDate
-                    + "... \nthe estimated harvest date is "
-                    + estHarvestDate.strftime("%m-%d-%Y")
+                    "You have not entered any seeds. You must enter a seed before you can get a sow date."
                 )
-
             else:
-                print("I am sorry. I could not find any good sow dates.")
-                print("Perhaps you should start these seeds indoors.")
+                user.printSeedList()
                 print("\n" + "* * * * * * * * * *" + "\n")
+
+                while True:
+                    selectedSeedNum = input("Enter seed: ")
+
+                    try:
+                        selectedSeedNum = int(selectedSeedNum.strip())
+                        selectedSeedIdx = selectedSeedNum - 1
+                        if selectedSeedIdx < len(user.seedList):
+                            selectedSeed = user.seedList[selectedSeedIdx]
+                        else:
+                            print(
+                                "Invalid option. Please enter a number from the list of saved seeds."
+                            )
+                            continue
+                    except:
+                        print(
+                            "Invalid option. Please enter a number from the list of saved seeds."
+                        )
+                        continue
+
+                    break
+
+                print("\n" + "* * * * * * * * * *" + "\n")
+
+                idealGrowDateStrs = getIdealGrowDateStrs(
+                    selectedSeed, user.avgLowMap, user.avgHighMap, user.avgTempMap
+                )
+                convertedGrowDates = getConvertedGrowDates(idealGrowDateStrs)
+                sowDateRanges = getSowDateRanges(selectedSeed, convertedGrowDates)
+
+                if len(sowDateRanges) > 0:
+                    print(f"Best sow dates for {selectedSeed.name}:\n")
+                    printSowDateRanges(sowDateRanges)
+                    print("\n" + "* * * * * * * * * *" + "\n")
+
+                    print("What day do you plan to sow your seeds?")
+                    plannedSowDate = input(
+                        "Please enter a date within the ranges above (format MM-DD-YYYY): "
+                    )
+                    print("\n" + "* * * * * * * * * *" + "\n")
+
+                    estHarvestDate = getHarvestDate(selectedSeed, plannedSowDate)
+                    print(
+                        "If you sow your seeds on "
+                        + plannedSowDate
+                        + "... \nthe estimated harvest date is "
+                        + estHarvestDate.strftime("%m-%d-%Y")
+                    )
+
+                else:
+                    print("I am sorry. I could not find any good sow dates.")
+                    print("Perhaps you should start these seeds indoors.")
+                    print("\n" + "* * * * * * * * * *" + "\n")
 
         elif userChoice == "2":
             newSeedInfo = getNewSeedInfo()
