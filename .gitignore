@@ -3,3 +3,5 @@ apiKeys.py
 requestsTest.py
 userStories.txt
 pickledUser.pkl
+findWeatherStation.py
+findWeatherStationNotes.txt
