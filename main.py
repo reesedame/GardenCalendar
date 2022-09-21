@@ -220,7 +220,7 @@ def getIdealGrowDateStrs(seed, avgLowMap, avgHighMap, avgTempMap):
     return idealGrowDateStrs
 
 
-# Converts date string to Date object
+# Helper method - converts date string to Date object
 def convertToDate(strDate):
     # Year is an arbitrary value that will not be shown to the user
     # 2020 is used as it was the last leap year
@@ -231,7 +231,7 @@ def convertToDate(strDate):
     return date(year, month, day)
 
 
-# Converts return from getIdealGrowDateStrs() from a list of strings to a list of Date objects
+# Converts return from getIdealGrowDateStrs() from a list of strings to a list of Date objects using convertToDate()
 def getConvertedGrowDates(idealGrowDateStrs):
     convertedGrowDates = []
 
@@ -241,8 +241,7 @@ def getConvertedGrowDates(idealGrowDateStrs):
     return convertedGrowDates
 
 
-# Returns date ranges as a list of dates
-# For example: index 0 is the start of the range and index 1 is the end
+# Returns a list of date ranges, represented by tuples
 def getSowDateRanges(seed, convertedGrowDates):
     totalGrowTime = seed.getTotalGrowTime()
 
@@ -260,8 +259,12 @@ def getSowDateRanges(seed, convertedGrowDates):
             lastSowDate = convertedGrowDates[i] - timedelta(days=totalGrowTime)
             dateRangeEndIdx = convertedGrowDates.index(lastSowDate)
 
-            sowDateRanges.append(convertedGrowDates[dateRangeStartIdx])
-            sowDateRanges.append(convertedGrowDates[dateRangeEndIdx])
+            sowDateRanges.append(
+                (
+                    convertedGrowDates[dateRangeStartIdx],
+                    convertedGrowDates[dateRangeEndIdx],
+                )
+            )
 
             dateRangeStartIdx = i + 1
 
@@ -274,23 +277,28 @@ def getSowDateRanges(seed, convertedGrowDates):
                 lastSowDate = convertedGrowDates[i] - timedelta(days=totalGrowTime)
                 dateRangeEndIdx = convertedGrowDates.index(lastSowDate)
 
-                sowDateRanges.append(convertedGrowDates[dateRangeStartIdx])
-                sowDateRanges.append(convertedGrowDates[dateRangeEndIdx])
+                sowDateRanges.append(
+                    (
+                        convertedGrowDates[dateRangeStartIdx],
+                        convertedGrowDates[dateRangeEndIdx],
+                    )
+                )
             # If growing temps are ideal in January, then the lastSowDate can be the final date
             # in convertedGrowDates
             else:
-                sowDateRanges.append(convertedGrowDates[dateRangeStartIdx])
-                sowDateRanges.append(convertedGrowDates[i + 1])
+                sowDateRanges.append(
+                    (
+                        convertedGrowDates[dateRangeStartIdx],
+                        convertedGrowDates[i + 1],
+                    )
+                )
 
     return sowDateRanges
 
 
 def printSowDateRanges(sowDateRanges):
-    for i in range(len(sowDateRanges)):
-        if i % 2 != 0:
-            dateRangeStart = sowDateRanges[i - 1].strftime("%B %-d")
-            dateRangeEnd = sowDateRanges[i].strftime("%B %-d")
-            print(dateRangeStart + " - " + dateRangeEnd)
+    for dateRange in sowDateRanges:
+        print(dateRange[0].strftime("%B %-d") + " - " + dateRange[1].strftime("%B %-d"))
 
 
 # Calculates an estimated harvest date based on the seed's total grow time
