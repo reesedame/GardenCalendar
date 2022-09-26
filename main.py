@@ -27,7 +27,7 @@ class Seed:
     def getTotalGrowTime(self):
         return int(self.daysToGermination) + int(self.daysToMaturity)
 
-    def printAttributes(self):
+    def __repr__(self):
         print("\n")
         print("Name: " + self.name)
         print(
@@ -82,11 +82,7 @@ class User:
         self.seedList = []
         self.latitudeAndLongitude = getLatitudeAndLongitude(zipCode)
         self.weatherStation = getWeatherStation(self.latitudeAndLongitude)
-
-        self.response_json = getDailyWeatherSummaries(
-            self.weatherStation, apiKeys.weatherKey
-        )
-        results = getDailyWeatherSummariesResults(self.response_json)
+        results = getDailyWeatherSummaries(self.weatherStation, apiKeys.weatherKey)
         self.avgTempMap = getAvgTempMap(results)
         self.avgLowMap = getAvgLowMap(results)
         self.avgHighMap = getAvgHighMap(results)
@@ -98,7 +94,7 @@ class User:
             print(str(listNum) + ". " + seed.name)
             listNum = listNum + 1
 
-    def printAttributes(self):
+    def __repr__(self):
         print("\n")
         print("Name: " + self.name)
         print("Zip code: " + self.zipCode)
@@ -159,15 +155,7 @@ def getDailyWeatherSummaries(weatherStation, apiKey):
     )
     response = requests.get(requestURL)
 
-    return response.json()
-
-
-def getDailyWeatherSummariesMetadata(res_json):
-    return res_json["metadata"]
-
-
-def getDailyWeatherSummariesResults(res_json):
-    return res_json["almanac_summaries"]
+    return response.json()["almanac_summaries"]
 
 
 def getAvgLowMap(results):
@@ -188,36 +176,41 @@ def pprintMap(map):
 
 
 # Returns all dates, as strings, that are within the ideal temperature range for the given seed
-def getIdealGrowDateStrs(seed, avgLowMap, avgHighMap, avgTempMap):
+def getIdealGrowDates(seed, avgLowMap, avgHighMap, avgTempMap):
     lowTemp = int(seed.lowerIdealTemp)
     highTemp = int(seed.upperIdealTemp)
-    avgLowDates = list(avgLowMap.keys())
-    avgHighDates = list(avgHighMap.keys())
 
-    idealGrowDateStrs = []
+    # Could use sets instead of lists
+    # & then idealGrowDateStrs would be a union of the two sets
+
+    idealGrowDates = []
 
     # If the seed is frost hardy...
     if seed.frostHardy == "Y":
+        avgLowDates = list(avgLowMap.keys())
+        avgHighDates = list(avgHighMap.keys())
+
         # Remove dates that have an avg low below 32
-        for date in avgLowMap:
-            if avgLowMap[date] < 32:
-                avgLowDates.remove(date)
+        avgLowDates = list(filter(lambda date: (avgLowMap[date] > 32), avgLowDates))
+
         # Remove dates that have an avg high > highTemp
-        for date in avgHighMap:
-            if avgHighMap[date] > highTemp:
-                avgHighDates.remove(date)
+        avgHighDates = list(
+            filter(lambda date: (avgHighMap[date] < highTemp), avgHighDates)
+        )
+
         # Add dates still remain in both avgLowDates & avgHighDates to idealGrowDateStrs
         for date in avgLowDates:
             if date in avgHighDates:
-                idealGrowDateStrs.append(date)
+                idealGrowDates.append(convertToDate(date))
+
     # If the seed is not frost hardy...
     else:
         # Add dates that have an avg temp >= lowTemp and <= highTemp to idealGrowDateStrs
         for date in avgTempMap:
             if avgTempMap[date] >= lowTemp and avgTempMap[date] <= highTemp:
-                idealGrowDateStrs.append(date)
+                idealGrowDates.append(convertToDate(date))
 
-    return idealGrowDateStrs
+    return idealGrowDates
 
 
 # Helper method - converts date string to Date object
@@ -231,18 +224,8 @@ def convertToDate(strDate):
     return date(year, month, day)
 
 
-# Converts return from getIdealGrowDateStrs() from a list of strings to a list of Date objects using convertToDate()
-def getConvertedGrowDates(idealGrowDateStrs):
-    convertedGrowDates = []
-
-    for date in idealGrowDateStrs:
-        convertedGrowDates.append(convertToDate(date))
-
-    return convertedGrowDates
-
-
 # Returns a list of date ranges, represented by tuples
-def getSowDateRanges(seed, convertedGrowDates):
+def getSowDateRanges(seed, idealGrowDates):
     totalGrowTime = seed.getTotalGrowTime()
 
     sowDateRanges = []
@@ -250,37 +233,40 @@ def getSowDateRanges(seed, convertedGrowDates):
     dateRangeStartIdx = 0
     dateRangeEndIdx = 0
 
-    for i in range(len(convertedGrowDates) - 1):
+    for i in range(len(idealGrowDates) - 1):
         # Calculate difference in dates from index to index
-        dateDifference = int((convertedGrowDates[i + 1] - convertedGrowDates[i]).days)
+        dateDifference = int((idealGrowDates[i + 1] - idealGrowDates[i]).days)
         # If the difference is greater than one, there is a gap of dates where temp is not ideal
         # & these dates will not be included in the sowDateRange
         if dateDifference > 1:
-            lastSowDate = convertedGrowDates[i] - timedelta(days=totalGrowTime)
-            dateRangeEndIdx = convertedGrowDates.index(lastSowDate)
+            # Year is set to 2020 to ensure that it is within idealGrowDates
+            lastSowDate = (idealGrowDates[i] - timedelta(days=totalGrowTime)).replace(
+                year=2020
+            )
+            dateRangeEndIdx = idealGrowDates.index(lastSowDate)
 
             sowDateRanges.append(
                 (
-                    convertedGrowDates[dateRangeStartIdx],
-                    convertedGrowDates[dateRangeEndIdx],
+                    idealGrowDates[dateRangeStartIdx],
+                    idealGrowDates[dateRangeEndIdx],
                 )
             )
 
             dateRangeStartIdx = i + 1
 
         # Add last range of dates
-        if i == len(convertedGrowDates) - 2:
-            # If growing temps are not ideal in January, the final date in convertedGrowDates
+        if i == len(idealGrowDates) - 2:
+            # If growing temps are not ideal in January, the final date in idealGrowDates
             # will be considered the final harvest date, which allows us to calculate
             # an ideal lastSowDate
-            if convertedGrowDates[0] != date(2020, 1, 1):
-                lastSowDate = convertedGrowDates[i] - timedelta(days=totalGrowTime)
-                dateRangeEndIdx = convertedGrowDates.index(lastSowDate)
+            if idealGrowDates[0] != date(2020, 1, 1):
+                lastSowDate = idealGrowDates[i] - timedelta(days=totalGrowTime)
+                dateRangeEndIdx = idealGrowDates.index(lastSowDate)
 
                 sowDateRanges.append(
                     (
-                        convertedGrowDates[dateRangeStartIdx],
-                        convertedGrowDates[dateRangeEndIdx],
+                        idealGrowDates[dateRangeStartIdx],
+                        idealGrowDates[dateRangeEndIdx],
                     )
                 )
             # If growing temps are ideal in January, then the lastSowDate can be the final date
@@ -288,8 +274,8 @@ def getSowDateRanges(seed, convertedGrowDates):
             else:
                 sowDateRanges.append(
                     (
-                        convertedGrowDates[dateRangeStartIdx],
-                        convertedGrowDates[i + 1],
+                        idealGrowDates[dateRangeStartIdx],
+                        idealGrowDates[i + 1],
                     )
                 )
 
@@ -375,30 +361,40 @@ def main():
 
                 print("\n" + "* * * * * * * * * *" + "\n")
 
-                idealGrowDateStrs = getIdealGrowDateStrs(
+                idealGrowDates = getIdealGrowDates(
                     selectedSeed, user.avgLowMap, user.avgHighMap, user.avgTempMap
                 )
-                convertedGrowDates = getConvertedGrowDates(idealGrowDateStrs)
-                sowDateRanges = getSowDateRanges(selectedSeed, convertedGrowDates)
+
+                sowDateRanges = getSowDateRanges(selectedSeed, idealGrowDates)
 
                 if len(sowDateRanges) > 0:
                     print(f"Best sow dates for {selectedSeed.name}:\n")
                     printSowDateRanges(sowDateRanges)
                     print("\n" + "* * * * * * * * * *" + "\n")
 
-                    print("What day do you plan to sow your seeds?")
-                    plannedSowDate = input(
-                        "Please enter a date within the ranges above (format MM-DD-YYYY): "
-                    )
-                    print("\n" + "* * * * * * * * * *" + "\n")
+                    while True:
+                        try:
+                            print("What day do you plan to sow your seeds?")
+                            plannedSowDate = input(
+                                "Please enter a date within the ranges above (format MM-DD-YYYY): "
+                            )
+                            print("\n" + "* * * * * * * * * *" + "\n")
 
-                    estHarvestDate = getHarvestDate(selectedSeed, plannedSowDate)
-                    print(
-                        "If you sow your seeds on "
-                        + plannedSowDate
-                        + "... \nthe estimated harvest date is "
-                        + estHarvestDate.strftime("%m-%d-%Y")
-                    )
+                            estHarvestDate = getHarvestDate(
+                                selectedSeed, plannedSowDate
+                            )
+                            print(
+                                "If you sow your seeds on "
+                                + plannedSowDate
+                                + "... \nthe estimated harvest date is "
+                                + estHarvestDate.strftime("%m-%d-%Y")
+                            )
+                        except:
+                            print(
+                                "Invalid entry. Please enter a date in the format MM-DD-YYYY\n"
+                            )
+                            continue
+                        break
 
                 else:
                     print("I am sorry. I could not find any good sow dates.")
