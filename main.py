@@ -1,178 +1,7 @@
-import requests
-import pprint
 from datetime import date, timedelta
-import apiKeys
 import pickle
-import pandas as pd
-from scipy.spatial.distance import cdist
-
-
-class Seed:
-    def __init__(
-        self,
-        name,
-        lowerIdealTemp,
-        upperIdealTemp,
-        frostHardy,
-        daysToGermination,
-        daysToMaturity,
-    ):
-        self.name = name
-        self.lowerIdealTemp = lowerIdealTemp
-        self.upperIdealTemp = upperIdealTemp
-        self.frostHardy = frostHardy.capitalize()
-        self.daysToGermination = daysToGermination
-        self.daysToMaturity = daysToMaturity
-
-    def getTotalGrowTime(self):
-        return int(self.daysToGermination) + int(self.daysToMaturity)
-
-    def __repr__(self):
-        print("\n")
-        print("Name: " + self.name)
-        print(
-            "Ideal Temperature: "
-            + self.lowerIdealTemp
-            + "-"
-            + self.upperIdealTemp
-            + "\N{DEGREE SIGN}F"
-        )
-        if self.frostHardy == "Y":
-            print("Frost Hardy: Yes")
-        else:
-            print("Frost Hardy: No")
-        print("Days to Germination: " + self.daysToGermination + " days")
-        print("Days to Maturity: " + self.daysToMaturity + " days")
-
-
-def getNewSeedInfo():
-    newSeedInfo = []
-
-    newSeedInfo.append(input("What is the seed?: "))
-    newSeedInfo.append(
-        input("What is the lower bound of the ideal temperature in fahrenheit?: ")
-    )
-    newSeedInfo.append(
-        input("What is the upper bound of the ideal temperature in fahrenheit?: ")
-    )
-    newSeedInfo.append(input("Is the seed frost hardy? Y/N: "))
-    newSeedInfo.append(input("How many days until germination?: "))
-    newSeedInfo.append(input("How many days until maturation?: "))
-
-    return newSeedInfo
-
-
-def createNewSeed(newSeedInfo):
-    newSeed = Seed(
-        newSeedInfo[0],
-        newSeedInfo[1],
-        newSeedInfo[2],
-        newSeedInfo[3],
-        newSeedInfo[4],
-        newSeedInfo[5],
-    )
-
-    return newSeed
-
-
-class User:
-    def __init__(self, name, zipCode):
-        self.name = name
-        self.zipCode = zipCode
-        self.seedList = []
-        self.latitudeAndLongitude = getLatitudeAndLongitude(zipCode)
-        self.weatherStation = getWeatherStation(self.latitudeAndLongitude)
-        results = getDailyWeatherSummaries(self.weatherStation, apiKeys.weatherKey)
-        self.avgTempMap = getAvgTempMap(results)
-        self.avgLowMap = getAvgLowMap(results)
-        self.avgHighMap = getAvgHighMap(results)
-
-    def printSeedList(self):
-        print("Seed List:")
-        listNum = 1
-        for seed in self.seedList:
-            print(str(listNum) + ". " + seed.name)
-            listNum = listNum + 1
-
-    def __repr__(self):
-        print("\n")
-        print("Name: " + self.name)
-        print("Zip code: " + self.zipCode)
-        print("Weather Station: " + self.weatherStation)
-        print("Seed List:")
-        self.printSeedList()
-
-
-def getNewUserInfo():
-    newUserInfo = []
-
-    newUserInfo.append(input("What is your name?: "))
-
-    while True:
-        zipCode = input("What is your zip code?: ")
-
-        try:
-            if len(zipCode.strip()) == 5:
-                zipCode = int(zipCode)
-            else:
-                print("Zip code must be 5 digits. Please try again.")
-                continue
-        except:
-            print("Zip code must be 5 digits. Please try again.")
-            continue
-        break
-
-    newUserInfo.append(zipCode)
-
-    return newUserInfo
-
-
-def createNewUser(newUserInfo):
-    newUser = User(newUserInfo[0], newUserInfo[1])
-
-    return newUser
-
-
-def getLatitudeAndLongitude(zipCode):
-    zipCodes = pd.read_csv("zipcodes.csv", usecols=["Zipcode", "Lat", "Long"])
-    records = zipCodes.loc[(zipCodes["Zipcode"] == zipCode)]
-    return (records["Lat"].mean(), records["Long"].mean())
-
-
-def getWeatherStation(latAndLong):
-    stations = pd.read_csv("weatherStations.csv")
-    locations = [(x, y) for x, y in zip(stations["Latitude"], stations["Longitude"])]
-    closest = locations[cdist([latAndLong], locations).argmin()]
-    stationID = stations.loc[
-        (stations["Latitude"] == closest[0]) & (stations["Longitude"] == closest[1])
-    ]["STID"].values[0]
-    return stationID
-
-
-def getDailyWeatherSummaries(weatherStation, apiKey):
-    requestURL = "https://api.weather.com/v1/location/{weatherStation}:9:US/almanac/daily.json?apiKey={apiKey}&units=e&start=0101&end=1231".format(
-        weatherStation=weatherStation, apiKey=apiKey
-    )
-    response = requests.get(requestURL)
-
-    return response.json()["almanac_summaries"]
-
-
-def getAvgLowMap(results):
-    return {r["almanac_dt"]: r["avg_lo"] for r in results}
-
-
-def getAvgHighMap(results):
-    return {r["almanac_dt"]: r["avg_hi"] for r in results}
-
-
-def getAvgTempMap(results):
-    return {r["almanac_dt"]: r["mean_temp"] for r in results}
-
-
-def pprintMap(map):
-    pp = pprint.PrettyPrinter(indent=4)
-    pp.pprint(map)
+from Seed import Seed
+from User import User
 
 
 # Returns all dates, as strings, that are within the ideal temperature range for the given seed
@@ -319,8 +148,11 @@ def main():
         print(
             "It looks like you're new here. I will need to collect some info before we get started."
         )
-        userInfo = getNewUserInfo()
-        user = createNewUser(userInfo)
+        user = User()
+        print(
+            "Next you will see a menu. From there you can add seeds to your saved list, get sow dates for saved seeds, or quit the program."
+        )
+        print("I hope you find the Garden Calendar useful! Please enjoy.")
 
     while True:
         displayMenu()
@@ -402,10 +234,10 @@ def main():
                     print("\n" + "* * * * * * * * * *" + "\n")
 
         elif userChoice == "2":
-            newSeedInfo = getNewSeedInfo()
-            user.seedList.append(createNewSeed(newSeedInfo))
+            newSeed = Seed()
+            user.seedList.append(newSeed)
             pickle.dump(user, open("pickledUser.pkl", "wb"))
-            print("The new seed has been added to your seed list.")
+            print(f"\n{user.seedList[-1].name} has been added to your seed list.")
 
         elif userChoice == "3":
             print(
