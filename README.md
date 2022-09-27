@@ -2,9 +2,9 @@
 
 I created the Garden Calendar to help user's determine appropriate dates to sow their seeds outdoors based on seed information and the user's local weather history.
 
-Once the program starts, the user is prompted to enter their name and zip code. The zip code's correlating latitude and longitude are then found by reading zipcodes.csv via pandas. The latitude and longitude are then used to determine the closest weather station. Finally, the closest weather station ID is used in IBM's Weather Data API to collect historical data - average temperature, average high temperature, and average low temperature for each day of the year. Based on the ideal temperature range for the seed, a range of ideal grow dates will be provided to the user. The user can then get an estimated harvest date by providing their planned sow date.
+Once the program starts, the user is prompted to enter their name and zip code. The zip code's correlating latitude and longitude are then found by reading zipcodes.csv via pandas. The latitude and longitude are then used to determine the closest weather station. The closest weather station ID is used in IBM's Weather Data API to collect historical data - average temperature, average high temperature, and average low temperature for each day of the year. This information is saved via the pickle module. I have not included my API key, so you will have to obtain one in order to run the program. A key for IBM's Weather Data API can be obtained by inspecting the network calls from Accuweather.
 
-I have not included my API key, so you will have to obtain one in order to run the program. A key for IBM's Weather Data API can be obtained by inspecting the network calls from Accuweather.
+After the user's local weather history has been found, the user can save seeds to their seed list by manually entering the seed's information or by searching for a specific seed. Seeds are searched for using BeautifulSoup on the site rareseeds.com . Based on the ideal temperature range for the seed, a range of ideal grow dates will be provided to the user. The user can then get an estimated harvest date by providing their planned sow date.
 
 To run the main program, all you have to do is run the main.py file. I hope you enjoy!
 
