@@ -126,10 +126,11 @@ def getHarvestDate(seed, strSowDate):
 
 
 def displayMenu():
-    print("\n" + "* * * * * * * * * *" + "\n")
+    print("\n" + "* * * M E N U * * *" + "\n")
     print("1. Get sow dates for saved seeds")
     print("2. Enter new seed")
-    print("3. Quit")
+    print("3. Search for new seed")
+    print("4. Quit")
     print("\n" + "* * * * * * * * * *" + "\n")
 
 
@@ -231,15 +232,22 @@ def main():
                 else:
                     print("I am sorry. I could not find any good sow dates.")
                     print("Perhaps you should start these seeds indoors.")
-                    print("\n" + "* * * * * * * * * *" + "\n")
 
         elif userChoice == "2":
-            newSeed = Seed()
+            newSeedInfo = Seed.getSeedInfoFromUser()
+            newSeed = Seed(newSeedInfo)
             user.seedList.append(newSeed)
             pickle.dump(user, open("pickledUser.pkl", "wb"))
             print(f"\n{user.seedList[-1].name} has been added to your seed list.")
 
         elif userChoice == "3":
+            newSeedInfo = Seed.searchForSeedInfo()
+            newSeed = Seed(newSeedInfo)
+            user.seedList.append(newSeed)
+            pickle.dump(user, open("pickledUser.pkl", "wb"))
+            print(f"\n{user.seedList[-1].name} has been added to your seed list.")
+
+        elif userChoice == "4":
             print(
                 "Thank you for using the Garden Calendar! I hope you have an abundant harvest!"
             )
