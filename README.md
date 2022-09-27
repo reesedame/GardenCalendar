@@ -12,5 +12,7 @@ To run the main program, all you have to do is run the main.py file. I hope you 
 
 - Recommend if and when a seed should be started indoors instead
 - ~~Determine an alternative way to determine the user's closest weather station to reduce the network impact~~
-- Utilize a web scraper to obtain seed's information
+- ~Utilize a web scraper to obtain seed's information~
 - ~~Save & reload user data - like the user's closest weather station and seeds they have entered~~
+- Save user's sow date for seeds
+- Remind user when to harvest
